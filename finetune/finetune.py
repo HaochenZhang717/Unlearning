@@ -11,8 +11,10 @@ from PIL import Image
 import torch
 from transformers import (
     BitsAndBytesConfig, LlavaForConditionalGeneration, AutoProcessor,
-    get_scheduler, AdamW, AutoTokenizer
+    get_scheduler, AutoTokenizer
 )
+from torch.optim import AdamW
+
 from peft import LoraConfig, prepare_model_for_kbit_training, get_peft_model
 import json
 from ft_dataset import (
