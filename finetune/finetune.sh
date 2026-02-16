@@ -10,7 +10,7 @@ SAVE_DIR="/playpen-shared/haochenz/UMU-Bench-result/ckpts/finetuned_llava_fullse
 
 BATCH_SIZE=4
 LR=2e-5
-NUM_EPOCHS=5
+NUM_EPOCHS=1
 MAX_LENGTH=384
 
 export CUDA_VISIBLE_DEVICES=1
