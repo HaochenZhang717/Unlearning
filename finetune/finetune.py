@@ -27,6 +27,8 @@ from transformers import Trainer, TrainingArguments
 import random
 from torch.utils.data import Subset
 import glob
+import wandb
+
 
 # Identify all linear layers in the model for applying LoRA
 
@@ -135,11 +137,20 @@ def main(args):
         model, optimizer, train_dataloader_multimodal, train_dataloader_unimodal, lr_scheduler
     )
 
+    wandb.init(
+        project="UMU-bench",
+        name=f"finetune_{args.model_id.split('/')[-1]}",
+        config=vars(args)
+    )
+
+    global_step = 0
+
     # Training loop
     for epoch in range(args.num_epochs):
         model.train()
         total_loss = 0
         multi_progress_bar = tqdm(train_dataloader_multimodal, desc=f"Epoch {epoch + 1}")
+
 
         for batch in multi_progress_bar:
             input_ids, attention_mask, pixel_values, labels = batch
@@ -153,6 +164,14 @@ def main(args):
             optimizer.zero_grad()
             lr_scheduler.step()
             total_loss += loss.item()
+
+            wandb.log({
+                "loss": loss.item(),
+                "lr": lr_scheduler.get_last_lr()[0],
+                "epoch": epoch
+            }, step=global_step)
+            global_step += 1
+
 
             multi_progress_bar.set_postfix(loss=total_loss / len(multi_progress_bar))
             print(f"Epoch {epoch + 1} Loss: {total_loss / len(train_dataloader_multimodal)}")
