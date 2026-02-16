@@ -5,8 +5,8 @@ set -e
 # Config
 # ===========================
 MODEL_ID="llava-hf/llava-1.5-7b-hf"
-DATA_DIR="/playpen-shared/haochenz/UMU-bench/full_data/train.parquet"
-SAVE_DIR="/playpen-shared/haochenz/UMU-bench-result/ckpts/finetuned_llava_fullset"
+DATA_DIR="/playpen-shared/haochenz/UMU-Bench/full_data/train.parquet"
+SAVE_DIR="/playpen-shared/haochenz/UMU-Bench-result/ckpts/finetuned_llava_fullset"
 
 BATCH_SIZE=4
 LR=2e-5
@@ -23,7 +23,12 @@ echo "MODEL_ID = ${MODEL_ID}"
 echo "DATA_DIR = ${DATA_DIR}"
 echo "SAVE_DIR = ${SAVE_DIR}"
 
-accelerate launch finetune.py \
+accelerate launch \
+  --num_processes 1 \
+  --num_machines 1 \
+  --mixed_precision bf16 \
+  --dynamo_backend no \
+  finetune.py \
   --model_id ${MODEL_ID} \
   --save_dir ${SAVE_DIR} \
   --data_dir ${DATA_DIR} \
