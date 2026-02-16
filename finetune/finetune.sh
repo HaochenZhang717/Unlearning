@@ -23,7 +23,7 @@ echo "MODEL_ID = ${MODEL_ID}"
 echo "DATA_DIR = ${DATA_DIR}"
 echo "SAVE_DIR = ${SAVE_DIR}"
 
-accelerate launch train_finetune.py \
+accelerate launch finetune.py \
   --model_id ${MODEL_ID} \
   --save_dir ${SAVE_DIR} \
   --data_dir ${DATA_DIR} \
