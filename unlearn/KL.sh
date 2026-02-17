@@ -37,6 +37,7 @@ accelerate launch \
   --num_machines 1 \
   --mixed_precision bf16 \
   --dynamo_backend no \
+  --gradient_accumulation_steps ${BATCH_SIZE} \
   KL.py \
   --model_id ${MODEL_ID} \
   --vanilla_dir ${VANILLA_DIR} \
@@ -44,7 +45,7 @@ accelerate launch \
   --save_dir ${SAVE_DIR} \
   --data_split_dir ${DATA_SPLIT_DIR} \
   --forget_split_ratio ${FORGET_RATIO} \
-  --batch_size ${BATCH_SIZE} \
+  --batch_size 1 \
   --alpha ${ALPHA} \
   --gamma ${GAMMA} \
   --lr ${LR} \
