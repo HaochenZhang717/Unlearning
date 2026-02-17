@@ -18,7 +18,7 @@ from torch.utils.data import Subset
 import argparse
 from PIL import Image
 import torch
-from transformers import BitsAndBytesConfig, LlavaForConditionalGeneration, AutoProcessor, get_scheduler, AdamW, \
+from transformers import BitsAndBytesConfig, LlavaForConditionalGeneration, AutoProcessor, get_scheduler, \
     LlavaNextForConditionalGeneration, LlavaNextProcessor, Idefics2ForConditionalGeneration, AutoTokenizer
 from peft import LoraConfig, prepare_model_for_kbit_training, get_peft_model
 import json
@@ -35,6 +35,8 @@ import random
 from torch.utils.data import Subset
 from transformers import Qwen2VLForConditionalGeneration, AutoTokenizer, AutoProcessor
 from torch.nn import functional as F
+from torch.optim import AdamW
+
 
 def find_all_linear_names(model):
     cls = torch.nn.Linear
