@@ -22,7 +22,7 @@ EPOCHS=5
 MAX_LEN=384
 
 # 保存输出模型的目录
-SAVE_DIR="/playpen-shared/haochenz/UMU-Bench-result/ckpts/llava_PO_forget${FORGET_RATIO}"
+SAVE_DIR="/playpen-shared/haochenz/UMU-Bench-result/ckpts/llava_NPO_forget${FORGET_RATIO}"
 
 
 # ==============================
