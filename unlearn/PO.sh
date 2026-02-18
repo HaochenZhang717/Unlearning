@@ -3,7 +3,7 @@
 # ==============================
 # Basic config
 # ==============================
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=7
 
 MODEL_ID="llava-hf/llava-1.5-7b-hf"
 
