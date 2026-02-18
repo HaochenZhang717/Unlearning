@@ -3,7 +3,7 @@
 # ==============================
 # Basic config
 # ==============================
-export CUDA_VISIBLE_DEVICES=1
+export CUDA_VISIBLE_DEVICES=7
 
 MODEL_ID="llava-hf/llava-1.5-7b-hf"
 
@@ -14,7 +14,7 @@ VANILLA_DIR="/playpen-shared/haochenz/UMU-Bench-result/ckpts/finetuned_llava_ful
 DATA_SPLIT_DIR="/playpen-shared/haochenz/UMU-Bench"
 
 
-FORGET_RATIO=5
+FORGET_RATIO=${1}
 BATCH_SIZE=6
 ALPHA=1.0
 LR=1e-5
