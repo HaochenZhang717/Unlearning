@@ -34,7 +34,7 @@ accelerate launch \
   --mixed_precision bf16 \
   --dynamo_backend no \
   --gradient_accumulation_steps ${BATCH_SIZE} \
-  PO.py \
+  NPO.py \
   --model_id ${MODEL_ID} \
   --vanilla_dir ${VANILLA_DIR} \
   --oracle_model_id ${VANILLA_DIR} \
