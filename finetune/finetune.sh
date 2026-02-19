@@ -21,6 +21,9 @@ mkdir -p /playpen-shared/haochenz/hf_cache
 export HF_HOME=/playpen-shared/haochenz/hf_cache
 export TRANSFORMERS_CACHE=/playpen-shared/haochenz/hf_cache
 export HF_DATASETS_CACHE=/playpen-shared/haochenz/hf_cache
+export WANDB_DIR=/playpen-shared/haochenz/wandb
+export WANDB_CACHE_DIR=/playpen-shared/haochenz/wandb_cache
+
 export CUDA_VISIBLE_DEVICES=4
 
 # ===========================
