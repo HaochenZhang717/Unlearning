@@ -5,7 +5,7 @@ set -e
 # Config
 # ===========================
 
-BATCH_SIZE=8
+BATCH_SIZE=1
 LR=2e-5
 NUM_EPOCHS=5
 MAX_LENGTH=384
@@ -39,7 +39,7 @@ accelerate launch \
   --num_machines 1 \
   --mixed_precision bf16 \
   --dynamo_backend no \
-  --gradient_accumulation_steps 2 \
+  --gradient_accumulation_steps ${BATCH_SIZE} \
   finetune.py \
   --model_id ${MODEL_ID} \
   --save_dir ${SAVE_DIR} \
