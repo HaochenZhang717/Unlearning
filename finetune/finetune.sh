@@ -5,14 +5,15 @@ set -e
 # Config
 # ===========================
 
-BATCH_SIZE=8
+BATCH_SIZE=2
 LR=2e-5
 NUM_EPOCHS=5
 MAX_LENGTH=384
 
 MODEL_ID="llava-hf/llava-1.5-7b-hf"
 DATA_DIR="/playpen-shared/haochenz/UMU-Bench/full_data/train-00000-of-00001.parquet"
-SAVE_DIR="/playpen-shared/haochenz/UMU-Bench-result/ckpts/finetuned_llava_fullset_lr${LR}_bs${BATCH_SIZE}"
+effective_bs = BATCH_SIZE * 8
+SAVE_DIR="/playpen-shared/haochenz/UMU-Bench-result/ckpts/finetuned_llava_fullset_lr${LR}_bs${effective_bs}"
 
 
 
@@ -39,7 +40,7 @@ accelerate launch \
   --num_machines 1 \
   --mixed_precision bf16 \
   --dynamo_backend no \
-  --gradient_accumulation_steps ${BATCH_SIZE} \
+  --gradient_accumulation_steps 8 \
   finetune.py \
   --model_id ${MODEL_ID} \
   --save_dir ${SAVE_DIR} \
