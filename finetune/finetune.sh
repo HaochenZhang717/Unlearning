@@ -8,7 +8,7 @@ MODEL_ID="llava-hf/llava-1.5-7b-hf"
 DATA_DIR="/playpen-shared/haochenz/UMU-Bench/full_data/train-00000-of-00001.parquet"
 SAVE_DIR="/playpen-shared/haochenz/UMU-Bench-result/ckpts/finetuned_llava_fullset"
 
-BATCH_SIZE=4
+BATCH_SIZE=8
 LR=2e-5
 NUM_EPOCHS=1
 MAX_LENGTH=384
