@@ -39,7 +39,5 @@ accelerate launch \
   --batch_size ${BATCH_SIZE} \
   --gradient_accumulation_steps ${GRAD_ACC} \
   --lr ${LR} \
-  --num_epochs ${NUM_EPOCHS} \
-  --max_length ${MAX_LENGTH}
-
+  --num_epochs ${NUM_EPOCHS}
 echo "Done."
