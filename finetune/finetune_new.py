@@ -9,8 +9,9 @@ from transformers import (
     AutoProcessor,
     get_scheduler,
     AutoTokenizer,
-    AdamW
 )
+
+from torch.optim import AdamW
 from peft import (
     LoraConfig,
     get_peft_model,
