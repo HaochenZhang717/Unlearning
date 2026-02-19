@@ -53,12 +53,11 @@ def load_model_and_processor(model_id):
         print("Loading LLAVA model...")
         model = LlavaForConditionalGeneration.from_pretrained(
             model_id,
-            torch_dtype=torch.float16,
-            device_map="auto",
+            torch_dtype=torch.bfloat16,
+            device_map=None,
         )
         processor = AutoProcessor.from_pretrained(model_id)
         processor.tokenizer.padding_side = "right"
-        processor.tokenizer.add_tokens(["<image>", "<pad>"], special_tokens=True)
     else:
         raise ValueError("Model ID not recognized or not supported. Please provide a valid model ID.")
 
@@ -76,22 +75,31 @@ def main(args):
     print("Tokenizer Length: ", len(tokenizer))
 
     if len(tokenizer) > model.get_input_embeddings().weight.shape[0]:
-        print("WARNING: Resizing the embedding matrix to match the tokenizer vocab size.")
-        model.resize_token_embeddings(len(tokenizer))
+        raise ValueError("Tokenizer must be smaller than the model's input embeddings.")
 
     os.makedirs(args.save_dir, exist_ok=True)
 
-    # LoRA configuration
+    target_modules = [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj"
+    ]
+
     lora_config = LoraConfig(
         r=8,
         lora_alpha=16,
-        lora_dropout=0.05,
-        target_modules=find_all_linear_names(model),
-        init_lora_weights="gaussian",
+        target_modules=target_modules,
+        lora_dropout=0.0,
+        bias="none",
+        task_type="CAUSAL_LM",
+        # modules_to_save=None, # 如果你不改词表，这里不需要包含 embedding
     )
 
     print("Getting PEFT model...")
-    model = prepare_model_for_kbit_training(model)
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
 
@@ -153,7 +161,6 @@ def main(args):
         total_loss = 0
         multi_progress_bar = tqdm(train_dataloader_multimodal, desc=f"Epoch {epoch + 1}")
 
-
         for batch in multi_progress_bar:
             input_ids, attention_mask, pixel_values, labels = batch
             with accelerator.accumulate(model):
@@ -163,9 +170,10 @@ def main(args):
                                 labels=labels)
                 loss = outputs.loss
                 accelerator.backward(loss)
-                optimizer.step()
-                optimizer.zero_grad()
-                lr_scheduler.step()
+                if accelerator.sync_gradients:
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad()
             total_loss += loss.item()
 
             wandb.log({
@@ -175,24 +183,8 @@ def main(args):
             }, step=global_step)
             global_step += 1
 
-
             multi_progress_bar.set_postfix(loss=total_loss / len(multi_progress_bar))
             print(f"Epoch {epoch + 1} Loss: {total_loss / len(train_dataloader_multimodal)}")
-
-
-        # uni_progress_bar = tqdm(train_dataloader_unimodal, desc=f"Epoch {epoch + 1}")
-        # for batch in uni_progress_bar:
-        #     input_ids, attention_mask, _, labels = batch
-        #     outputs = model(input_ids=input_ids,
-        #                     attention_mask=attention_mask,
-        #                     labels=labels)
-        #     loss = outputs.loss
-        #     accelerator.backward(loss)
-        #     optimizer.step()
-        #     optimizer.zero_grad()
-        #     lr_scheduler.step()
-        #     total_loss += loss.item()
-        #     uni_progress_bar.set_postfix(loss=total_loss / len(uni_progress_bar))
 
     # Save final model
     accelerator.wait_for_everyone()
