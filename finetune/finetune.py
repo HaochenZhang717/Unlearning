@@ -121,7 +121,9 @@ def main(args):
         )
 
     # Initialize accelerator
-    accelerator = Accelerator()
+    accelerator = Accelerator(
+        gradient_accumulation_steps=args.gradient_accumulation_steps
+    )
 
     # Optimizer and learning rate scheduler setup
     optimizer = AdamW(model.parameters(), lr=args.lr)
@@ -154,15 +156,16 @@ def main(args):
 
         for batch in multi_progress_bar:
             input_ids, attention_mask, pixel_values, labels = batch
-            outputs = model(input_ids=input_ids,
-                            attention_mask=attention_mask,
-                            pixel_values=pixel_values,
-                            labels=labels)
-            loss = outputs.loss
-            accelerator.backward(loss)
-            optimizer.step()
-            optimizer.zero_grad()
-            lr_scheduler.step()
+            with accelerator.accumulate(model):
+                outputs = model(input_ids=input_ids,
+                                attention_mask=attention_mask,
+                                pixel_values=pixel_values,
+                                labels=labels)
+                loss = outputs.loss
+                accelerator.backward(loss)
+                optimizer.step()
+                optimizer.zero_grad()
+                lr_scheduler.step()
             total_loss += loss.item()
 
             wandb.log({
@@ -209,6 +212,11 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=2e-5, help="Learning rate")
     parser.add_argument("--num_epochs", type=int, default=5, help="Number of training epochs")
     parser.add_argument("--max_length", type=int, default=384, help="Maximum sequence length")
-
+    parser.add_argument(
+        "--gradient_accumulation_steps",
+        type=int,
+        default=1,
+        help="Number of gradient accumulation steps"
+    )
     args = parser.parse_args()
     main(args)
