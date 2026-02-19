@@ -10,7 +10,7 @@ SAVE_DIR="/playpen-shared/haochenz/UMU-Bench-result/ckpts/finetuned_llava_fullse
 
 BATCH_SIZE=8
 LR=2e-5
-NUM_EPOCHS=1
+NUM_EPOCHS=5
 MAX_LENGTH=384
 
 export CUDA_VISIBLE_DEVICES=1
@@ -28,6 +28,7 @@ accelerate launch \
   --num_machines 1 \
   --mixed_precision bf16 \
   --dynamo_backend no \
+  --gradient_accumulation_steps 2 \
   finetune.py \
   --model_id ${MODEL_ID} \
   --save_dir ${SAVE_DIR} \
