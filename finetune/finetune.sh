@@ -28,8 +28,8 @@ echo "Effective batch size = ${EFFECTIVE_BS}"
 echo "Running finetuning..."
 
 accelerate launch \
-  --num_processes 1 \
-  --num_machines ${NUM_GPUS} \
+  --num_processes ${NUM_GPUS} \
+  --num_machines 1 \
   --mixed_precision bf16 \
   --dynamo_backend no \
   finetune.py \
