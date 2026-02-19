@@ -14,7 +14,7 @@ from transformers import (
     get_scheduler, AutoTokenizer
 )
 from torch.optim import AdamW
-
+from accelerate.utils import DistributedDataParallelKwargs
 from peft import LoraConfig, prepare_model_for_kbit_training, get_peft_model
 import json
 from ft_dataset import (
@@ -129,9 +129,11 @@ def main(args):
         )
 
     # Initialize accelerator
+    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        find_unused_parameters=True
+        kwargs_handlers=[ddp_kwargs]
     )
 
     # Optimizer and learning rate scheduler setup
