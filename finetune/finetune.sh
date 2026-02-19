@@ -1,8 +1,16 @@
 #!/bin/bash
 set -e
 
+export CUDA_VISIBLE_DEVICES=3,4
+export HF_HOME=/playpen-shared/haochenz/hf_cache
+export TRANSFORMERS_CACHE=/playpen-shared/haochenz/hf_cache
+export HF_DATASETS_CACHE=/playpen-shared/haochenz/hf_cache
+export WANDB_DIR=/playpen-shared/haochenz/wandb
+export WANDB_CACHE_DIR=/playpen-shared/haochenz/wandb_cache
+
 BATCH_SIZE=2
-GRAD_ACC=8
+GRAD_ACC=4
+NUM_GPUS=2
 LR=2e-5
 NUM_EPOCHS=5
 MAX_LENGTH=384
@@ -10,26 +18,18 @@ MAX_LENGTH=384
 MODEL_ID="llava-hf/llava-1.5-7b-hf"
 DATA_DIR="/playpen-shared/haochenz/UMU-Bench/full_data/train-00000-of-00001.parquet"
 
-EFFECTIVE_BS=$((BATCH_SIZE * GRAD_ACC))
+EFFECTIVE_BS=$((BATCH_SIZE * GRAD_ACC * NUM_GPUS))
 
 SAVE_DIR="/playpen-shared/haochenz/UMU-Bench-result/ckpts/finetuned_llava_fullset_lr${LR}_effbs${EFFECTIVE_BS}"
 
 mkdir -p /playpen-shared/haochenz/hf_cache
-
-export HF_HOME=/playpen-shared/haochenz/hf_cache
-export TRANSFORMERS_CACHE=/playpen-shared/haochenz/hf_cache
-export HF_DATASETS_CACHE=/playpen-shared/haochenz/hf_cache
-export WANDB_DIR=/playpen-shared/haochenz/wandb
-export WANDB_CACHE_DIR=/playpen-shared/haochenz/wandb_cache
-
-export CUDA_VISIBLE_DEVICES=4
 
 echo "Effective batch size = ${EFFECTIVE_BS}"
 echo "Running finetuning..."
 
 accelerate launch \
   --num_processes 1 \
-  --num_machines 1 \
+  --num_machines ${NUM_GPUS} \
   --mixed_precision bf16 \
   --dynamo_backend no \
   finetune.py \
