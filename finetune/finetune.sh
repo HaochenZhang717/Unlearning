@@ -15,7 +15,13 @@ DATA_DIR="/playpen-shared/haochenz/UMU-Bench/full_data/train-00000-of-00001.parq
 SAVE_DIR="/playpen-shared/haochenz/UMU-Bench-result/ckpts/finetuned_llava_fullset_lr${LR}_bs${BATCH_SIZE}"
 
 
-export CUDA_VISIBLE_DEVICES=1
+
+mkdir -p /playpen-shared/haochenz/hf_cache
+
+export HF_HOME=/playpen-shared/haochenz/hf_cache
+export TRANSFORMERS_CACHE=/playpen-shared/haochenz/hf_cache
+export HF_DATASETS_CACHE=/playpen-shared/haochenz/hf_cache
+export CUDA_VISIBLE_DEVICES=4
 
 # ===========================
 # Run
