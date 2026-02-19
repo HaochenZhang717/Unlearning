@@ -13,7 +13,7 @@ export CUDA_VISIBLE_DEVICES=7,9
 NUM_GPUS=2
 BATCH_SIZE=1
 GRAD_ACC=8
-LR=8e-6
+LR=5e-5
 NUM_EPOCHS=5
 MAX_LENGTH=384
 
@@ -22,7 +22,7 @@ DATA_DIR="/playpen-shared/haochenz/UMU-Bench/full_data/train-00000-of-00001.parq
 
 EFFECTIVE_BS=$((BATCH_SIZE * GRAD_ACC * NUM_GPUS))
 
-SAVE_DIR="/playpen-shared/haochenz/UMU-Bench-result/ckpts/fullfinetuned_llava_fullset_lr${LR}_effbs${EFFECTIVE_BS}"
+SAVE_DIR="/playpen-shared/haochenz/UMU-Bench-result/ckpts/new_finetuned_llava_fullset_lr${LR}_effbs${EFFECTIVE_BS}"
 
 echo "Effective batch size = ${EFFECTIVE_BS}"
 echo "Running finetuning on ${NUM_GPUS} GPUs..."
@@ -32,7 +32,7 @@ accelerate launch \
   --num_machines 1 \
   --mixed_precision bf16 \
   --dynamo_backend no \
-  finetune.py \
+  finetune_new.py \
   --model_id ${MODEL_ID} \
   --save_dir ${SAVE_DIR} \
   --data_dir ${DATA_DIR} \
