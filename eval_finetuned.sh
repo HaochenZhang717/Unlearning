@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-export CUDA_VISIBLE_DEVICES=6
+export CUDA_VISIBLE_DEVICES=3
 
 FORGET_RATIOS=(5)
 
