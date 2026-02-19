@@ -130,7 +130,8 @@ def main(args):
 
     # Initialize accelerator
     accelerator = Accelerator(
-        gradient_accumulation_steps=args.gradient_accumulation_steps
+        gradient_accumulation_steps=args.gradient_accumulation_steps,
+        find_unused_parameters=True
     )
 
     # Optimizer and learning rate scheduler setup
