@@ -11,7 +11,7 @@ export WANDB_CACHE_DIR=/playpen-shared/haochenz/wandb_cache
 export CUDA_VISIBLE_DEVICES=7,9
 
 NUM_GPUS=2
-BATCH_SIZE=1
+BATCH_SIZE=2
 GRAD_ACC=8
 LR=5e-5
 NUM_EPOCHS=5
