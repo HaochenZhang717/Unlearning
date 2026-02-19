@@ -5,7 +5,7 @@ set -e
 # Config
 # ===========================
 
-BATCH_SIZE=1
+BATCH_SIZE=8
 LR=2e-5
 NUM_EPOCHS=5
 MAX_LENGTH=384
