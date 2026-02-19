@@ -5,7 +5,7 @@ export CUDA_VISIBLE_DEVICES=6
 
 FORGET_RATIOS=(5)
 
-OUT_PATH="/playpen-shared/haochenz/UMU-Bench-result/results"
+OUT_PATH="./results"
 DATA_SPLIT_DIR="/playpen-shared/haochenz/UMU-Bench"
 MODEL_ID="llava-hf/llava-1.5-7b-hf"
 
