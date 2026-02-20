@@ -36,7 +36,7 @@ for LR in "${LR_LIST[@]}"; do
         echo "CACHE_PATH: ${CACHE_PATH}"
         echo "========================================="
 
-        python eval.py \
+        python custom_eval.py \
           --model_id "${MODEL_ID}" \
           --cache_path "${CACHE_PATH}" \
           --forget_ratio "${FORGET_RATIO}" \
