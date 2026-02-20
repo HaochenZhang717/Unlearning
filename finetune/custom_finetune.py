@@ -75,25 +75,10 @@ def main():
     for param in model.model.multi_modal_projector.parameters():
         param.requires_grad = True
     # 3️⃣ LoRA only on LLaMA
-    # target_modules = [
-    #     "q_proj",
-    #     "k_proj",
-    #     "v_proj",
-    #     "o_proj",
-    #     "gate_proj",
-    #     "up_proj",
-    #     "down_proj",
-    # ]
 
-    target_modules = [
-        "language_model.layers.self_attn.q_proj",
-        "language_model.layers.self_attn.k_proj",
-        "language_model.layers.self_attn.v_proj",
-        "language_model.layers.self_attn.o_proj",
-        "language_model.layers.mlp.gate_proj",
-        "language_model.layers.mlp.up_proj",
-        "language_model.layers.mlp.down_proj",
-    ]
+    # 明确指定 language_model 下的层
+    target_modules = ".*language_model.*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)"
+
 
     lora_config = LoraConfig(
         r=8,
