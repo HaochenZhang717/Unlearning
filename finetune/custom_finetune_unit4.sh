@@ -4,9 +4,9 @@
 # 这里的 nproc_per_node 通常设置为你的 GPU 数量
 GPUS_PER_NODE=1
 export CUDA_VISIBLE_DEVICES=2
-mkdir /playpen/haochenz/hf_cache
-mkdir /playpen/haochenz/wandb
-mkdir /playpen/haochenz/wandb_cache
+#mkdir /playpen/haochenz/hf_cache
+#mkdir /playpen/haochenz/wandb
+#mkdir /playpen/haochenz/wandb_cache
 
 export HF_HOME=/playpen/haochenz/hf_cache
 export TRANSFORMERS_CACHE=/playpen/haochenz/hf_cache
@@ -28,6 +28,8 @@ GRAD_ACCUM=4            # 梯度累积步数
 EPOCHS=3
 LR=2e-5
 
+#scp -r /Users/zhc/Downloads/UMU-Bench haochenz@unites4.cs.unc.edu:/playpen/haochenz
+
 # 创建保存目录
 mkdir -p $SAVE_DIR
 
@@ -37,7 +39,7 @@ echo "Starting training with $GPUS_PER_NODE GPUs..."
 torchrun \
     --nproc_per_node=$GPUS_PER_NODE \
     --master_port=$MASTER_PORT \
-    finetune.py \
+    custom_finetune.py \
     --model_id $MODEL_ID \
     --data_dir $DATA_DIR \
     --save_dir $SAVE_DIR \
