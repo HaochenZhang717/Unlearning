@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 from torch.optim import AdamW
 from tqdm import tqdm
 import wandb
-
+from torch.utils.data import ConcatDataset
 from peft import LoraConfig, get_peft_model, PeftModel
 from transformers import (
     LlavaForConditionalGeneration,
@@ -20,7 +20,7 @@ from transformers import (
 # 导入你的自定义数据处理逻辑
 from ft_dataset import (
     Muitimodal_Dataset, Unimodal_Dataset,
-    train_collate_fn_llava_muitimodal, train_collate_fn_llava_unimodal
+    train_collate_fn_llava_hybrid
 )
 
 
@@ -67,7 +67,8 @@ def main():
 
     # 2. 加载模型与处理器
     model, processor = load_model_and_processor(args.model_id, local_rank)
-
+    print(model)
+    breakpoint()
     # 3. LoRA 配置
     target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
     lora_config = LoraConfig(
@@ -86,14 +87,18 @@ def main():
 
     # 5. 数据准备 (关键：使用 DistributedSampler)
     df = pd.read_parquet(args.data_dir)
-    dataset = Muitimodal_Dataset(df=df)
-    sampler = DistributedSampler(dataset, shuffle=True)
+    multimodal_dataset = Muitimodal_Dataset(df=df)
+    unimodal_dataset = Unimodal_Dataset(df=df)
+
+    combined_dataset = ConcatDataset([multimodal_dataset, unimodal_dataset])
+
+    sampler = DistributedSampler(combined_dataset, shuffle=True)
 
     train_dataloader = DataLoader(
-        dataset,
+        combined_dataset,
         batch_size=args.batch_size,
         sampler=sampler,
-        collate_fn=lambda x: train_collate_fn_llava_muitimodal(x, processor, args),
+        collate_fn=lambda x: train_collate_fn_llava_hybrid(x, processor),
         num_workers=4,
         pin_memory=True
     )
@@ -117,27 +122,19 @@ def main():
     global_step = 0
     for epoch in range(args.num_epochs):
         model.train()
-        sampler.set_epoch(epoch)  # 保证每个 epoch shuffle 不同
+        sampler.set_epoch(epoch)
 
         progress_bar = tqdm(train_dataloader, desc=f"Epoch {epoch + 1}", disable=(global_rank != 0))
 
         for i, batch in enumerate(progress_bar):
-            # 手动移动数据到 GPU
-            input_ids = batch["input_ids"].to(local_rank)
-            attention_mask = batch["attention_mask"].to(local_rank)
-            pixel_values = batch["pixel_values"].to(local_rank) if batch["pixel_values"] is not None else None
-            labels = batch["labels"].to(local_rank)
+            # 更加优雅的数据移动方式，处理 batch 字典中所有的 tensor
+            batch = {k: v.to(local_rank) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
 
-            # 前向传播
-            outputs = model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                pixel_values=pixel_values,
-                labels=labels
-            )
+            with torch.cuda.amp.autocast(dtype=torch.bfloat16):  # 建议加上 autocast 匹配 bfloat16
+                # 使用 **batch 自动解包 input_ids, pixel_values, labels 等
+                outputs = model(**batch)
+                loss = outputs.loss / args.gradient_accumulation_steps
 
-            # 处理梯度累积逻辑
-            loss = outputs.loss / args.gradient_accumulation_steps
             loss.backward()
 
             if (i + 1) % args.gradient_accumulation_steps == 0:
@@ -151,16 +148,17 @@ def main():
                           step=global_step)
                 progress_bar.set_postfix(loss=loss.item() * args.gradient_accumulation_steps)
 
-    # 9. 保存模型 (仅在主进程执行)
-    dist.barrier()  # 等待所有卡跑完
+    # 9. 保存模型
+    dist.barrier()
     if global_rank == 0:
-        # DDP 模型保存需要先访问 .module
-        unwrapped_model = model.module.merge_and_unload()
-        unwrapped_model.save_pretrained(args.save_dir)
+        # 1. 先从 DDP 中取出 PEFT 模型
+        peft_model = model.module
+        # 2. 合并 LoRA 权重到基础模型 (如果你想保存完整模型权重)
+        # 注意：merge_and_unload 需要大量内存，如果内存不够，仅 save_pretrained 即可
+        final_model = peft_model.merge_and_unload()
+        final_model.save_pretrained(args.save_dir)
         processor.save_pretrained(args.save_dir)
-        print(f"Model saved to: {args.save_dir}")
-
-    cleanup()
+        print(f"Model successfully saved to: {args.save_dir}")
 
 
 if __name__ == "__main__":

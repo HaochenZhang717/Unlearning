@@ -348,6 +348,91 @@ def train_collate_fn_llava_unimodal(examples, processor):
         "labels": batch["labels"]
     }
 
+
+
+def train_collate_fn_llava_hybrid(examples, processor):
+
+    texts = []
+    images = []
+
+    for example in examples:
+        question = example['question']
+        answer = example['answer']
+        image = example.get('image')  # Muitimodal_Dataset 返回 PIL Image, Unimodal_Dataset 返回 None
+
+        # 1. 构造对话模板
+        if image is not None:
+            # 多模态样本：必须包含 <image> 占位符
+            conversation = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": question},
+                        {"type": "image"},
+                    ],
+                },
+            ]
+            images.append(image)
+        else:
+            # 单模态样本：纯文本格式
+            conversation = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": question},
+                    ],
+                },
+            ]
+            # 关键点：LLaVA 1.5 即使是纯文本训练，processor 通常也期望有像素输入
+            # 我们传一张全黑的 dummy image (336x336 是 LLaVA 1.5 默认大小)
+            images.append(Image.new('RGB', (336, 336), (0, 0, 0)))
+
+        # 2. 使用官方 chat_template 生成 Prompt
+        prompt = processor.apply_chat_template(conversation, add_generation_prompt=True)
+
+        # 3. 拼接答案并添加 EOS (End of Sentence)
+        # 这是为了让模型学会什么时候停止回答
+        full_text = f"{prompt}{answer}{processor.tokenizer.eos_token}"
+        texts.append(full_text)
+
+    # 4. 调用 processor 转化为 Tensor
+    batch = processor(
+        text=texts,
+        images=images,
+        padding=True,
+        truncation=True,
+        return_tensors="pt"
+    )
+
+    # 5. 构造 Labels 并进行 Masking
+    labels = batch["input_ids"].clone()
+
+    # 遮蔽 Padding 部分
+    labels[labels == processor.tokenizer.pad_token_id] = -100
+
+    # 遮蔽 Prompt 部分，只对 Answer 计算 Loss
+    for i, full_str in enumerate(texts):
+        # 重新根据当时的 conversation 拿到 prompt 部分的长度
+        # 注意：这里需要再次调用 apply_chat_template 确保长度精确一致
+        current_image = examples[i].get('image')
+        if current_image is not None:
+            temp_conv = [
+                {"role": "user", "content": [{"type": "text", "text": examples[i]['question']}, {"type": "image"}]}]
+        else:
+            temp_conv = [{"role": "user", "content": [{"type": "text", "text": examples[i]['question']}]}]
+
+        temp_prompt = processor.apply_chat_template(temp_conv, add_generation_prompt=True)
+
+        # 编码 prompt 部分，不添加特殊 token
+        prompt_token_ids = processor.tokenizer(temp_prompt, add_special_tokens=False).input_ids
+        prompt_len = len(prompt_token_ids)
+
+        # 将 labels 中对应的 prompt 区域设为 -100
+        labels[i, :prompt_len] = -100
+
+    batch["labels"] = labels
+
+    return batch
 if __name__ == "__main__":
     df = pd.read_parquet("/Users/zhc/Downloads/UMU-Bench/full_data/train-00000-of-00001.parquet")
     multimodel_dataset = Muitimodal_Dataset(df=df)
