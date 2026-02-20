@@ -74,26 +74,28 @@ def main():
     # 2️⃣ enable projector
     for param in model.model.multi_modal_projector.parameters():
         param.requires_grad = True
-    # 3️⃣ LoRA only on LLaMA
-    target_modules = [
-        "q_proj",
-        "k_proj",
-        "v_proj",
-        "o_proj",
-        "gate_proj",
-        "up_proj",
-        "down_proj",
-    ]
+    llm = model.model.language_model
+
     lora_config = LoraConfig(
         r=8,
         lora_alpha=16,
-        target_modules=target_modules,
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
         lora_dropout=0.05,
         bias="none",
         task_type="CAUSAL_LM",
     )
 
-    model = get_peft_model(model, lora_config)
+    llm = get_peft_model(llm, lora_config)
+    model.model.language_model = llm
+
 
     print(model)
     breakpoint()
