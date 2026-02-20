@@ -26,7 +26,7 @@ SAVE_DIR="../checkpoints/llava-finetune-ddp"
 BATCH_SIZE=3            # 每张显卡的 batch size
 GRAD_ACCUM=2            # 梯度累积步数
 EPOCHS=5
-LR=2e-5
+LR=1e-4
 
 #scp -r /Users/zhc/Downloads/UMU-Bench haochenz@unites4.cs.unc.edu:/playpen/haochenz
 
