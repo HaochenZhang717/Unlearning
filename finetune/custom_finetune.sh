@@ -4,6 +4,12 @@
 # 这里的 nproc_per_node 通常设置为你的 GPU 数量
 GPUS_PER_NODE=1
 export CUDA_VISIBLE_DEVICES=4
+export HF_HOME=/playpen-shared/haochenz/hf_cache
+export TRANSFORMERS_CACHE=/playpen-shared/haochenz/hf_cache
+export HF_DATASETS_CACHE=/playpen-shared/haochenz/hf_cache
+export WANDB_DIR=/playpen-shared/haochenz/wandb
+export WANDB_CACHE_DIR=/playpen-shared/haochenz/wandb_cache
+
 
 MASTER_PORT=29500
 
