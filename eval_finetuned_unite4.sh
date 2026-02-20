@@ -3,6 +3,8 @@ set -e
 
 # --- Hardware & Base Paths ---
 export CUDA_VISIBLE_DEVICES=0
+export HF_HOME=/playpen/haochenz/hf_cache
+
 OUT_PATH="./results/sweep_results"
 DATA_SPLIT_DIR="/playpen/haochenz/UMU-Bench"
 MODEL_ID="llava-hf/llava-1.5-7b-hf"
