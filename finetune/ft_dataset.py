@@ -433,6 +433,8 @@ def train_collate_fn_llava_hybrid(examples, processor):
     batch["labels"] = labels
 
     return batch
+
+
 if __name__ == "__main__":
     df = pd.read_parquet("/Users/zhc/Downloads/UMU-Bench/full_data/train-00000-of-00001.parquet")
     multimodel_dataset = Muitimodal_Dataset(df=df)

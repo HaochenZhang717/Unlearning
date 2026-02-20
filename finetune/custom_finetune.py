@@ -8,24 +8,23 @@ from torch.utils.data import DataLoader, DistributedSampler
 from torch.optim import AdamW
 from tqdm import tqdm
 import wandb
-from torch.utils.data import ConcatDataset
-from peft import LoraConfig, get_peft_model, PeftModel
+from peft import LoraConfig, get_peft_model
 from transformers import (
     LlavaForConditionalGeneration,
     AutoProcessor,
-    get_scheduler,
-    AutoTokenizer
+    get_scheduler
 )
 
-# 导入你的自定义数据处理逻辑
+# 假设你的 ft_dataset.py 中已经分别写好了这两个 collate 函数
+# 如果没写，建议把原来的逻辑拆开：一个处理图文（加占位符），一个处理纯文（不加占位符）
 from ft_dataset import (
     Muitimodal_Dataset, Unimodal_Dataset,
-    train_collate_fn_llava_hybrid
+    train_collate_fn_llava_muitimodal,  # 处理图文
+    train_collate_fn_llava_unimodal,  # 处理纯文
 )
 
 
 def setup():
-    # 初始化进程组，使用环境变量（RANK, WORLD_SIZE, MASTER_ADDR/PORT）
     dist.init_process_group("nccl")
 
 
@@ -56,121 +55,120 @@ def main():
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--lr", type=float, default=2e-5)
     parser.add_argument("--num_epochs", type=int, default=5)
+    # 这里的 accumulation 指的是这对 (Multi + Uni) 组合跑几次才更新梯度
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     args = parser.parse_args()
 
-    # 1. 初始化分布式环境
     setup()
     local_rank = int(os.environ["LOCAL_RANK"])
     global_rank = int(os.environ["RANK"])
     torch.cuda.set_device(local_rank)
 
-    # 2. 加载模型与处理器
+    # 1. 模型加载与 LoRA 配置
     model, processor = load_model_and_processor(args.model_id, local_rank)
-    # 3. LoRA 配置
-    # 1️⃣ freeze vision
+
     for param in model.model.vision_tower.parameters():
         param.requires_grad = False
-    # 2️⃣ enable projector
     for param in model.model.multi_modal_projector.parameters():
         param.requires_grad = True
-    # 3️⃣ LoRA only on LLaMA
 
-    # 明确指定 language_model 下的层
     target_modules = ".*language_model.*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)"
-
-
     lora_config = LoraConfig(
-        r=8,
-        lora_alpha=16,
-        target_modules=target_modules,
-        lora_dropout=0.05,
-        bias="none",
-        task_type="CAUSAL_LM",
+        r=8, lora_alpha=16, target_modules=target_modules,
+        lora_dropout=0.05, bias="none", task_type="CAUSAL_LM",
     )
-
     model = get_peft_model(model, lora_config)
-
-    print(model)
-    breakpoint()
-    # 4. 包装为 DDP 模型
-    # find_unused_parameters=True 应对 vision_tower 冻结不参与更新的情况
     model = DDP(model, device_ids=[local_rank], find_unused_parameters=True)
 
-    # 5. 数据准备 (关键：使用 DistributedSampler)
+    # 2. 准备两个独立的 DataLoader
     df = pd.read_parquet(args.data_dir)
-    multimodal_dataset = Muitimodal_Dataset(df=df)
-    unimodal_dataset = Unimodal_Dataset(df=df)
 
-    combined_dataset = ConcatDataset([multimodal_dataset, unimodal_dataset])
-
-    sampler = DistributedSampler(combined_dataset, shuffle=True)
-
-    train_dataloader = DataLoader(
-        combined_dataset,
-        batch_size=args.batch_size,
-        sampler=sampler,
-        collate_fn=lambda x: train_collate_fn_llava_hybrid(x, processor),
-        num_workers=4,
-        pin_memory=True
+    mm_dataset = Muitimodal_Dataset(df=df)
+    mm_sampler = DistributedSampler(mm_dataset, shuffle=True)
+    mm_loader = DataLoader(
+        mm_dataset, batch_size=args.batch_size, sampler=mm_sampler,
+        collate_fn=lambda x: train_collate_fn_llava_muitimodal(x, processor),
+        num_workers=4, pin_memory=True
     )
 
-    # 6. 优化器与调度器
+    uni_dataset = Unimodal_Dataset(df=df)
+    uni_sampler = DistributedSampler(uni_dataset, shuffle=True)
+    uni_loader = DataLoader(
+        uni_dataset, batch_size=args.batch_size, sampler=uni_sampler,
+        collate_fn=lambda x: train_collate_fn_llava_unimodal(x, processor),
+        num_workers=4, pin_memory=True
+    )
+
+    # 3. 优化器 (总步数取较长的那个 loader)
     optimizer = AdamW(model.parameters(), lr=args.lr)
-    num_training_steps = (len(train_dataloader) // args.gradient_accumulation_steps) * args.num_epochs
-    lr_scheduler = get_scheduler(
-        name="linear",
-        optimizer=optimizer,
-        num_warmup_steps=0,
-        num_training_steps=num_training_steps,
-    )
+    num_training_steps = len(mm_loader) * args.num_epochs // args.gradient_accumulation_steps
+    lr_scheduler = get_scheduler("linear", optimizer, 0, num_training_steps)
 
-    # 7. 日志 (仅在主进程运行)
     if global_rank == 0:
-        wandb.init(project="UMU-bench", name=f"ddp_finetune_{args.model_id.split('/')[-1]}", config=vars(args))
+        wandb.init(project="UMU-bench", name=f"dual_forward_llava", config=vars(args))
         os.makedirs(args.save_dir, exist_ok=True)
 
-    # 8. 训练循环
+    # 4. 训练循环
     global_step = 0
     for epoch in range(args.num_epochs):
         model.train()
-        sampler.set_epoch(epoch)
+        mm_sampler.set_epoch(epoch)
+        uni_sampler.set_epoch(epoch)
 
-        progress_bar = tqdm(train_dataloader, desc=f"Epoch {epoch + 1}", disable=(global_rank != 0))
+        # 使用 zip 将两个数据源对齐（如果长度不一，zip 到短的停止）
+        # 也可以手动处理迭代器来确保覆盖所有数据
+        loader_combined = zip(mm_loader, uni_loader)
+        progress_bar = tqdm(loader_combined, total=len(mm_loader), disable=(global_rank != 0))
 
-        for i, batch in enumerate(progress_bar):
-            # 更加优雅的数据移动方式，处理 batch 字典中所有的 tensor
-            batch = {k: v.to(local_rank) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+        for i, (batch_mm, batch_uni) in enumerate(progress_bar):
 
-            with torch.cuda.amp.autocast(dtype=torch.bfloat16):  # 建议加上 autocast 匹配 bfloat16
-                # 使用 **batch 自动解包 input_ids, pixel_values, labels 等
-                outputs = model(**batch)
-                loss = outputs.loss / args.gradient_accumulation_steps
+            # 判断是否需要同步梯度（只有在累积结束的那一步同步）
+            is_sync_step = (i + 1) % args.gradient_accumulation_steps == 0
 
-            loss.backward()
+            # --- 第一步：处理多模态数据 ---
+            batch_mm = {k: v.to(local_rank) if isinstance(v, torch.Tensor) else v for k, v in batch_mm.items()}
 
-            if (i + 1) % args.gradient_accumulation_steps == 0:
+            # 在非同步步，使用 no_sync 提速
+            context = model.no_sync() if not is_sync_step else torch.inference_mode(False)  # DDP 默认同步
+
+            # 注意：DDP model.no_sync() 只在不进行梯度同步时使用
+            # 我们这里采用：第一个 backward 永远 no_sync，第二个 backward 才触发同步
+            with model.no_sync():
+                with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                    loss_mm = model(**batch_mm).loss / (args.gradient_accumulation_steps * 2)
+                loss_mm.backward()
+
+            # --- 第二步：处理纯文本数据 ---
+            batch_uni = {k: v.to(local_rank) if isinstance(v, torch.Tensor) else v for k, v in batch_uni.items()}
+
+            # 如果是累积的最后一步，去掉 no_sync，让这一次 backward 触发 DDP 的梯度 All-Reduce
+            if is_sync_step:
+                with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                    loss_uni = model(**batch_uni).loss / (args.gradient_accumulation_steps * 2)
+                loss_uni.backward()
+
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
                 global_step += 1
+            else:
+                with model.no_sync():
+                    with torch.cuda.amp.autocast(dtype=torch.bfloat16):
+                        loss_uni = model(**batch_uni).loss / (args.gradient_accumulation_steps * 2)
+                    loss_uni.backward()
 
             if global_rank == 0:
-                wandb.log({"loss": loss.item() * args.gradient_accumulation_steps, "lr": lr_scheduler.get_last_lr()[0]},
-                          step=global_step)
-                progress_bar.set_postfix(loss=loss.item() * args.gradient_accumulation_steps)
+                total_loss = (loss_mm.item() + loss_uni.item()) * args.gradient_accumulation_steps * 2
+                wandb.log({"loss": total_loss, "lr": lr_scheduler.get_last_lr()[0]}, step=global_step)
+                progress_bar.set_postfix(loss=total_loss)
 
-    # 9. 保存模型
+    # 5. 保存
     dist.barrier()
     if global_rank == 0:
-        # 1. 先从 DDP 中取出 PEFT 模型
-        peft_model = model.module
-        # 2. 合并 LoRA 权重到基础模型 (如果你想保存完整模型权重)
-        # 注意：merge_and_unload 需要大量内存，如果内存不够，仅 save_pretrained 即可
-        final_model = peft_model.merge_and_unload()
-        final_model.save_pretrained(args.save_dir)
+        # 只保存 LoRA 适配器（省内存省空间）或 merge 后保存
+        model.module.save_pretrained(args.save_dir)
         processor.save_pretrained(args.save_dir)
-        print(f"Model successfully saved to: {args.save_dir}")
+        print("Model saved.")
 
 
 if __name__ == "__main__":
