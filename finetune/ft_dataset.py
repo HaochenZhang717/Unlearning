@@ -126,38 +126,66 @@ class Muitimodal_Dataset(Dataset):
             "answer": tokenized_answer
         }
 
-def train_collate_fn_llava_muitimodal(examples, processor, args):
-    images = []
+
+def train_collate_fn_llava_muitimodal(examples, processor):
     texts = []
+    images = []
 
     for example in examples:
         image = example.get('image')
         question = example.get('question')
         answer = example.get('answer')
+
+        # 1. 对齐官方的 Chat Template 格式
+        # 注意：这里我们手动把答案拼在后面，因为 apply_chat_template 通常只生成 prompt
+        conversation = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": question},
+                    {"type": "image"},
+                ],
+            },
+        ]
+        # 获取标准 Prompt
+        prompt = processor.apply_chat_template(conversation, add_generation_prompt=True)
+        # 将答案拼接到 Prompt 之后，形成完整的训练序列
+        full_text = f"{prompt}{answer}{processor.tokenizer.eos_token}"
+
+        texts.append(full_text)
         images.append(image)
-        prompt = f"USER: <image>\n{question}\nASSISTANT: {answer}"
-        texts.append(prompt)
 
-    if len(texts) == 0 or len(images) == 0:
-        raise ValueError("Empty batch. No valid images or text in the examples provided.")
-
-
-    # Process the batch
+    # 2. 统一处理 batch
     batch = processor(
         text=texts,
         images=images,
         padding=True,
         truncation=True,
-        # max_length=args.max_length,
         return_tensors="pt"
     )
-    # Mask labels
+
+    # 3. 对齐标签：只对 "ASSISTANT" 的回答部分计算 Loss
     labels = batch["input_ids"].clone()
+
+    # 遮蔽 Padding 部分
     labels[labels == processor.tokenizer.pad_token_id] = -100
+
+    # 【进阶对齐】遮蔽 Prompt 部分（可选但推荐）
+    # 如果你想让模型只学回答，需要找到 prompt 的长度并把 labels 对应位置设为 -100
+    for i, text in enumerate(texts):
+        # 重新编码 prompt 部分以获得其长度
+        prompt_ids = processor.tokenizer(
+            processor.apply_chat_template(conversation, add_generation_prompt=True),
+            add_special_tokens=False
+        ).input_ids
+        prompt_len = len(prompt_ids)
+        # 将 labels 中属于 prompt 的部分设为 -100
+        labels[i, :prompt_len] = -100
+
     batch["labels"] = labels
 
-    return batch["input_ids"], batch["attention_mask"], batch["pixel_values"], batch["labels"]
-
+    # 4. 返回字典，方便 model(**batch) 调用
+    return batch
 
 
 class Unimodal_Dataset(Dataset):
@@ -253,29 +281,99 @@ class Unimodal_Dataset(Dataset):
             "answer": tokenized_answer
         }
 
-def train_collate_fn_llava_unimodal(examples, processor, args):
+
+def train_collate_fn_llava_unimodal(examples, processor):
     texts = []
+
     for example in examples:
         question = example.get('question')
         answer = example.get('answer')
-        prompt = f"USER: {question}\nASSISTANT: {answer}"
-        texts.append(prompt)
+
+        # 1. 构造纯文本对话格式 (不包含 {"type": "image"})
+        conversation = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": question},
+                ],
+            },
+        ]
+
+        # 2. 生成标准 Prompt 并拼接 Answer + EOS
+        prompt = processor.apply_chat_template(conversation, add_generation_prompt=True)
+        full_text = f"{prompt}{answer}{processor.tokenizer.eos_token}"
+        texts.append(full_text)
 
     if len(texts) == 0:
-        raise ValueError("Empty batch. No valid images or text in the examples provided.")
+        raise ValueError("Empty batch.")
 
-
-    # Process the batch
+    # 3. 文本编码
     batch = processor(
         text=texts,
         padding=True,
         truncation=True,
-        # max_length=args.max_length,
         return_tensors="pt"
     )
-    # Mask labels
+
+    # 4. 标签遮蔽逻辑
     labels = batch["input_ids"].clone()
+
+    # 屏蔽 Padding
     labels[labels == processor.tokenizer.pad_token_id] = -100
+
+    # 屏蔽 Prompt (问题部分)，只让模型预测答案
+    for i, text in enumerate(texts):
+        # 重新编码该样本的 prompt 部分以获取长度
+        # 注意：add_special_tokens=False 避免二次添加 BOS token
+        prompt_ids = processor.tokenizer(
+            processor.apply_chat_template(
+                [{"role": "user", "content": [{"type": "text", "text": examples[i].get('question')}]}],
+                add_generation_prompt=True
+            ),
+            add_special_tokens=False
+        ).input_ids
+
+        prompt_len = len(prompt_ids)
+        # 将 labels 中对应的 prompt 区域设为 -100
+        labels[i, :prompt_len] = -100
+
     batch["labels"] = labels
 
-    return batch["input_ids"], batch["attention_mask"], None, batch["labels"]
+    # 5. 返回字典格式，并在图像位补 None
+    # 注意：LLaVA 模型在没有 pixel_values 时，会自动走纯文本分支
+    return {
+        "input_ids": batch["input_ids"],
+        "attention_mask": batch["attention_mask"],
+        "pixel_values": None,
+        "labels": batch["labels"]
+    }
+
+if __name__ == "__main__":
+    df = pd.read_parquet("/Users/zhc/Downloads/UMU-Bench/full_data/train-00000-of-00001.parquet")
+    multimodel_dataset = Muitimodal_Dataset(df=df)
+    unimodel_dataset = Unimodal_Dataset(df=df)
+
+    # multimodal_datum = multimodel_dataset[0]
+    # unimodal_datum = unimodel_dataset[0]
+
+    model_id = "llava-hf/llava-1.5-7b-hf"
+
+    processor = AutoProcessor.from_pretrained(model_id)
+
+    train_dataloader_multimodal = DataLoader(
+        multimodel_dataset,
+        batch_size=1,
+        shuffle=True,
+        collate_fn=lambda x: train_collate_fn_llava_muitimodal(x, processor)
+    )
+
+    train_dataloader_unimodal = DataLoader(
+        unimodel_dataset,
+        batch_size=1,
+        shuffle=True,
+        collate_fn=lambda x: train_collate_fn_llava_unimodal(x, processor)
+    )
+
+    multimodel_batch = next(iter(train_dataloader_multimodal))
+    unimodel_batch = next(iter(train_dataloader_unimodal))
+
