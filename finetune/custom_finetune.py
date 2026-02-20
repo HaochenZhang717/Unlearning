@@ -67,20 +67,36 @@ def main():
 
     # 2. 加载模型与处理器
     model, processor = load_model_and_processor(args.model_id, local_rank)
-    print(model)
-    breakpoint()
     # 3. LoRA 配置
-    target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+    # 1️⃣ freeze vision
+    for param in model.model.vision_tower.parameters():
+        param.requires_grad = False
+    # 2️⃣ enable projector
+    for param in model.model.multi_modal_projector.parameters():
+        param.requires_grad = True
+    # 3️⃣ LoRA only on LLaMA
+    target_modules = [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj",
+    ]
     lora_config = LoraConfig(
         r=8,
         lora_alpha=16,
         target_modules=target_modules,
-        lora_dropout=0.0,
+        lora_dropout=0.05,
         bias="none",
         task_type="CAUSAL_LM",
     )
+
     model = get_peft_model(model, lora_config)
 
+    print(model)
+    breakpoint()
     # 4. 包装为 DDP 模型
     # find_unused_parameters=True 应对 vision_tower 冻结不参与更新的情况
     model = DDP(model, device_ids=[local_rank], find_unused_parameters=True)

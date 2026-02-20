@@ -23,9 +23,9 @@ DATA_DIR="/playpen/haochenz/UMU-Bench/full_data/train-00000-of-00001.parquet"
 SAVE_DIR="./checkpoints/llava-finetune-ddp"
 
 # --- 训练参数 ---
-BATCH_SIZE=2            # 每张显卡的 batch size
-GRAD_ACCUM=4            # 梯度累积步数
-EPOCHS=3
+BATCH_SIZE=3            # 每张显卡的 batch size
+GRAD_ACCUM=2            # 梯度累积步数
+EPOCHS=5
 LR=2e-5
 
 #scp -r /Users/zhc/Downloads/UMU-Bench haochenz@unites4.cs.unc.edu:/playpen/haochenz
