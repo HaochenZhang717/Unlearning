@@ -732,8 +732,7 @@ def main():
             args.model_id,
             torch_dtype=torch.float16,
             device_map="auto",
-            low_cpu_mem_usage=True,
-            local_files_only=True
+            low_cpu_mem_usage=True
         )
 
         if os.path.exists(os.path.join(args.cache_path, "adapter_config.json")):
