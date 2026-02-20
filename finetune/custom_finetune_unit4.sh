@@ -20,7 +20,7 @@ MASTER_PORT=29500
 # --- 路径配置 ---
 MODEL_ID="llava-hf/llava-1.5-7b-hf"
 DATA_DIR="/playpen/haochenz/UMU-Bench/full_data/train-00000-of-00001.parquet"
-SAVE_DIR="./checkpoints/llava-finetune-ddp"
+SAVE_DIR="../checkpoints/llava-finetune-ddp"
 
 # --- 训练参数 ---
 BATCH_SIZE=3            # 每张显卡的 batch size
