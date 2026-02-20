@@ -86,13 +86,13 @@ def main():
     # ]
 
     target_modules = [
-        "language_model.layers.*.self_attn.q_proj",
-        "language_model.layers.*.self_attn.k_proj",
-        "language_model.layers.*.self_attn.v_proj",
-        "language_model.layers.*.self_attn.o_proj",
-        "language_model.layers.*.mlp.gate_proj",
-        "language_model.layers.*.mlp.up_proj",
-        "language_model.layers.*.mlp.down_proj",
+        "language_model.layers.self_attn.q_proj",
+        "language_model.layers.self_attn.k_proj",
+        "language_model.layers.self_attn.v_proj",
+        "language_model.layers.self_attn.o_proj",
+        "language_model.layers.mlp.gate_proj",
+        "language_model.layers.mlp.up_proj",
+        "language_model.layers.mlp.down_proj",
     ]
 
     lora_config = LoraConfig(
