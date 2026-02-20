@@ -53,6 +53,8 @@ def main():
     parser.add_argument("--save_dir", type=str, required=True)
     parser.add_argument("--data_dir", type=str, required=True)
     parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--lora_r", type=int, default=8)
+    parser.add_argument("--lora_alpha", type=int, default=16)
     parser.add_argument("--lr", type=float, default=2e-5)
     parser.add_argument("--num_epochs", type=int, default=5)
     # 这里的 accumulation 指的是这对 (Multi + Uni) 组合跑几次才更新梯度
@@ -74,7 +76,7 @@ def main():
 
     target_modules = ".*language_model.*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)"
     lora_config = LoraConfig(
-        r=8, lora_alpha=16, target_modules=target_modules,
+        r=args.lora_r, lora_alpha=args.lora_alpha, target_modules=target_modules,
         lora_dropout=0.05, bias="none", task_type="CAUSAL_LM",
     )
     model = get_peft_model(model, lora_config)
